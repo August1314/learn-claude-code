@@ -46,16 +46,9 @@ import uuid
 from pathlib import Path
 from queue import Queue
 
-from anthropic import Anthropic
-from dotenv import load_dotenv
-
-load_dotenv(override=True)
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
+from _runtime import MODEL, create_message_with_retry
 
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
 
 TEAM_DIR = WORKDIR / ".team"
 INBOX_DIR = TEAM_DIR / "inbox"
@@ -180,7 +173,7 @@ def run_subagent(prompt: str, agent_type: str = "Explore") -> str:
     sub_msgs = [{"role": "user", "content": prompt}]
     resp = None
     for _ in range(30):
-        resp = client.messages.create(model=MODEL, messages=sub_msgs, tools=sub_tools, max_tokens=8000)
+        resp = create_message_with_retry(model=MODEL, messages=sub_msgs, tools=sub_tools, max_tokens=8000)
         sub_msgs.append({"role": "assistant", "content": resp.content})
         if resp.stop_reason != "tool_use":
             break
@@ -247,7 +240,7 @@ def auto_compact(messages: list) -> list:
         for msg in messages:
             f.write(json.dumps(msg, default=str) + "\n")
     conv_text = json.dumps(messages, default=str)[-80000:]
-    resp = client.messages.create(
+    resp = create_message_with_retry(
         model=MODEL,
         messages=[{"role": "user", "content": f"Summarize for continuity:\n{conv_text}"}],
         max_tokens=2000,
@@ -462,7 +455,7 @@ class TeammateManager:
                         return
                     messages.append({"role": "user", "content": json.dumps(msg)})
                 try:
-                    response = client.messages.create(
+                    response = create_message_with_retry(
                         model=MODEL, system=sys_prompt, messages=messages,
                         tools=tools, max_tokens=8000)
                 except Exception:
@@ -669,7 +662,7 @@ def agent_loop(messages: list):
         if inbox:
             messages.append({"role": "user", "content": f"<inbox>{json.dumps(inbox, indent=2)}</inbox>"})
         # LLM call
-        response = client.messages.create(
+        response = create_message_with_retry(
             model=MODEL, system=SYSTEM, messages=messages,
             tools=TOOLS, max_tokens=8000,
         )

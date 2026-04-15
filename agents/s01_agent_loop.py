@@ -26,6 +26,7 @@ policy, hooks, and lifecycle controls on top.
 
 import os
 import subprocess
+from pathlib import Path
 
 # 导入readline模块并配置，用于优化命令行交互体验
 try:
@@ -41,22 +42,7 @@ except ImportError:
     # 如果环境中没有readline模块（如某些Windows环境），则静默忽略
     pass
 
-# 导入Anthropic SDK，用于与Claude等AI模型进行交互
-from anthropic import Anthropic
-# 导入dotenv库，用于从.env文件加载环境变量
-from dotenv import load_dotenv
-
-# 加载环境变量，override=True表示覆盖已有的环境变量
-load_dotenv(override=True)
-
-# 如果设置了自定义的Anthropic API基础URL，则移除可能存在的认证令牌
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
-
-# 创建Anthropic客户端实例
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-# 从环境变量中获取模型ID
-MODEL = os.environ["MODEL_ID"]
+from _runtime import BASE_URL, MODEL, create_message_with_retry
 
 # 系统提示，定义AI的角色和行为
 SYSTEM = f"You are a coding agent at {os.getcwd()}. Use bash to solve tasks. Act, don't explain."
@@ -111,13 +97,15 @@ def run_bash(command: str) -> str:
         return f"Error: {e}"
 
 
-# -- The core pattern: a while loop that calls tools until the model stops --
 def agent_loop(messages: list):
     while True:
         # 调用Anthropic API生成响应
-        response = client.messages.create(
-            model=MODEL, system=SYSTEM, messages=messages,
-            tools=TOOLS, max_tokens=8000,
+        response = create_message_with_retry(
+            model=MODEL,
+            system=SYSTEM,
+            messages=messages,
+            tools=TOOLS,
+            max_tokens=8000,
         )
         
         # 将模型的回复以assistant角色添加到对话历史中
@@ -150,6 +138,11 @@ def agent_loop(messages: list):
 if __name__ == "__main__":
     # 存储对话历史的列表
     history = []
+
+    print(
+        f"Using model={MODEL}, "
+        f"base_url={BASE_URL or 'https://api.anthropic.com'}"
+    )
     
     while True:
         try:

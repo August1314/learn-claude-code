@@ -40,17 +40,9 @@ import subprocess
 import time
 from pathlib import Path
 
-from anthropic import Anthropic
-from dotenv import load_dotenv
-
-load_dotenv(override=True)
-
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
+from _runtime import MODEL, create_message_with_retry
 
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
 
 SYSTEM = f"You are a coding agent at {WORKDIR}. Use tools to solve tasks."
 
@@ -110,7 +102,7 @@ def auto_compact(messages: list) -> list:
     print(f"[transcript saved: {transcript_path}]")
     # Ask LLM to summarize
     conversation_text = json.dumps(messages, default=str)[-80000:]
-    response = client.messages.create(
+    response = create_message_with_retry(
         model=MODEL,
         messages=[{"role": "user", "content":
             "Summarize this conversation for continuity. Include: "
@@ -206,7 +198,7 @@ def agent_loop(messages: list):
         if estimate_tokens(messages) > THRESHOLD:
             print("[auto_compact triggered]")
             messages[:] = auto_compact(messages)
-        response = client.messages.create(
+        response = create_message_with_retry(
             model=MODEL, system=SYSTEM, messages=messages,
             tools=TOOLS, max_tokens=8000,
         )

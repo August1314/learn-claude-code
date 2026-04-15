@@ -31,17 +31,9 @@ import os
 import subprocess
 from pathlib import Path
 
-from anthropic import Anthropic
-from dotenv import load_dotenv
-
-load_dotenv(override=True)
-
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
+from _runtime import MODEL, create_message_with_retry
 
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
 
 SYSTEM = f"""You are a coding agent at {WORKDIR}.
 Use the todo tool to plan multi-step tasks. Mark in_progress before starting, completed when done.
@@ -165,7 +157,7 @@ def agent_loop(messages: list):
     rounds_since_todo = 0
     while True:
         # Nag reminder is injected below, alongside tool results
-        response = client.messages.create(
+        response = create_message_with_retry(
             model=MODEL, system=SYSTEM, messages=messages,
             tools=TOOLS, max_tokens=8000,
         )

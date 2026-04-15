@@ -43,16 +43,9 @@ import time
 import uuid
 from pathlib import Path
 
-from anthropic import Anthropic
-from dotenv import load_dotenv
-
-load_dotenv(override=True)
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
+from _runtime import MODEL, create_message_with_retry
 
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
 TEAM_DIR = WORKDIR / ".team"
 INBOX_DIR = TEAM_DIR / "inbox"
 TASKS_DIR = WORKDIR / ".tasks"
@@ -232,7 +225,7 @@ class TeammateManager:
                         return
                     messages.append({"role": "user", "content": json.dumps(msg)})
                 try:
-                    response = client.messages.create(
+                    response = create_message_with_retry(
                         model=MODEL,
                         system=sys_prompt,
                         messages=messages,
@@ -525,7 +518,7 @@ def agent_loop(messages: list):
                 "role": "user",
                 "content": f"<inbox>{json.dumps(inbox, indent=2)}</inbox>",
             })
-        response = client.messages.create(
+        response = create_message_with_retry(
             model=MODEL,
             system=SYSTEM,
             messages=messages,
