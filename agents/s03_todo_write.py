@@ -46,23 +46,49 @@ class TodoManager:
         self.items = []
 
     def update(self, items: list) -> str:
+        """
+        更新待办事项列表
+        
+        注意：这是一个原子操作，要么全部成功更新，要么全部失败
+        如果任何一个待办事项验证失败，会抛出异常，self.items 不会被更新
+        
+        参数：
+        - items: list - 待办事项列表，每个事项是包含 id、text、status 的字典
+        
+        返回值：
+        - str - 渲染后的待办事项列表
+        """
         if len(items) > 20:
             raise ValueError("Max 20 todos allowed")
         validated = []
         in_progress_count = 0
         for i, item in enumerate(items):
+            # 获取并处理待办事项的文本内容
+            # item.get("text", ""): 从字典中获取 "text" 键的值，如果不存在则返回空字符串 ""
+            # str(): 确保值转换为字符串类型
+            # .strip(): 去除字符串首尾的空白字符
             text = str(item.get("text", "")).strip()
+            
             status = str(item.get("status", "pending")).lower()
             item_id = str(item.get("id", str(i + 1)))
+            
             if not text:
                 raise ValueError(f"Item {item_id}: text required")
             if status not in ("pending", "in_progress", "completed"):
                 raise ValueError(f"Item {item_id}: invalid status '{status}'")
             if status == "in_progress":
                 in_progress_count += 1
+            
+            # 将验证通过的事项添加到新的验证列表中
+            # 注意：此代码不检查待办事项是否重复
+            # 如果 LLM 重新输入所有任务，会完全替换现有的待办事项列表
             validated.append({"id": item_id, "text": text, "status": status})
+        
         if in_progress_count > 1:
             raise ValueError("Only one task can be in_progress at a time")
+        
+        # 完全替换现有的待办事项列表
+        # 当 LLM 重新输入所有任务时，会覆盖之前的列表
         self.items = validated
         return self.render()
 
